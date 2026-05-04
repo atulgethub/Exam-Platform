@@ -12,16 +12,16 @@ dotenv.config();
 const app = express();
 const server = http.createServer(app);
 
-// Get allowed origins from environment or use defaults
+// Define allowed origins (add both Vercel URLs)
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
-  'https://atulgethub-exam-platform.vercel.app',
-  'https://exam-platform-ecru.vercel.app',
+  'https://exam-platform-ecru.vercel.app',      // Old URL
+  'https://atulgethub-exam-platform.vercel.app', // Current URL
   process.env.CLIENT_URL
 ].filter(Boolean);
 
-// Socket.IO with dynamic CORS
+// Socket.IO with CORS
 const io = socketIO(server, {
   cors: {
     origin: allowedOrigins,
@@ -33,21 +33,28 @@ const io = socketIO(server, {
 
 // Security middleware
 app.use(helmet({
-  contentSecurityPolicy: false, // Disable for development
+  contentSecurityPolicy: false,
 }));
 
-// CORS middleware - Allow multiple origins
+// CORS middleware - Dynamic origin checking
 app.use(cors({
   origin: function(origin, callback) {
     // Allow requests with no origin (like mobile apps or curl)
-    if (!origin) return callback(null, true);
+    if (!origin) {
+      return callback(null, true);
+    }
     
+    // Check if origin is allowed
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
-      console.log('Blocked CORS request from:', origin);
-      callback(null, true); // Allow temporarily for debugging
-      // callback(new Error('Not allowed by CORS'));
+      console.log(`CORS blocked: ${origin}`);
+      // For development, still allow but log warning
+      if (process.env.NODE_ENV === 'development') {
+        callback(null, true);
+      } else {
+        callback(new Error(`CORS policy does not allow access from ${origin}`));
+      }
     }
   },
   credentials: true,
@@ -55,8 +62,17 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
-// Handle preflight requests
-app.options('*', cors());
+// Handle preflight requests explicitly
+app.options('*', (req, res) => {
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.header('Access-Control-Allow-Credentials', 'true');
+  }
+  res.sendStatus(200);
+});
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -73,23 +89,15 @@ app.use('/api/', limiter);
 const connectDB = async () => {
   try {
     await mongoose.connect(process.env.MONGODB_URI);
-    
     console.log('✅ MongoDB Atlas connected successfully');
     console.log(`📊 Database: ${mongoose.connection.db.databaseName}`);
     console.log(`🔗 Host: ${mongoose.connection.host}`);
-    console.log(`📦 Connection State: ${mongoose.connection.readyState}`);
   } catch (error) {
     console.error('❌ MongoDB Atlas connection error:', error.message);
-    console.log('\n🔧 Troubleshooting tips:');
-    console.log('1. Check if IP is whitelisted in MongoDB Atlas');
-    console.log('2. Verify username and password in connection string');
-    console.log('3. Check if cluster is active');
-    console.log('4. Verify network connectivity');
     process.exit(1);
   }
 };
 
-// Call connection
 connectDB();
 
 // Handle connection events
@@ -105,7 +113,6 @@ mongoose.connection.on('disconnected', () => {
   console.log('📴 MongoDB disconnected, attempting to reconnect...');
 });
 
-// Graceful shutdown
 process.on('SIGINT', async () => {
   await mongoose.connection.close();
   console.log('MongoDB connection closed through app termination');
@@ -132,19 +139,12 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/results', resultsRoutes);
 app.use('/api/contact', contactRoutes);
 
-// Test route - Health check
+// Test route
 app.get('/api/test', (req, res) => {
   res.json({ 
     message: 'API is working!', 
     timestamp: new Date(),
-    status: 'online',
-    endpoints: {
-      auth: '/api/auth',
-      exam: '/api/exam',
-      admin: '/api/admin',
-      results: '/api/results',
-      contact: '/api/contact'
-    }
+    allowedOrigins: allowedOrigins
   });
 });
 
@@ -153,8 +153,7 @@ app.get('/', (req, res) => {
   res.json({
     name: 'Exam Platform API',
     version: '1.0.0',
-    status: 'running',
-    documentation: '/api/test'
+    status: 'running'
   });
 });
 
@@ -213,13 +212,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('leave-exam', ({ examId }) => {
-    if (examId) {
-      socket.leave(`exam-${examId}`);
-      console.log(`User left exam room ${examId}`);
-    }
-  });
-
   socket.on('disconnect', () => {
     if (socket.examId && examRooms.get(socket.examId)) {
       const room = examRooms.get(socket.examId);
@@ -234,5 +226,6 @@ server.listen(PORT, () => {
   console.log(`\n🚀 Server running on port ${PORT}`);
   console.log(`📡 WebSocket ready for connections`);
   console.log(`🌐 Test API: http://localhost:${PORT}/api/test`);
-  console.log(`🔗 CORS enabled for: ${allowedOrigins.join(', ')}`);
+  console.log(`🔗 CORS enabled for origins:`);
+  allowedOrigins.forEach(origin => console.log(`   - ${origin}`));
 });
