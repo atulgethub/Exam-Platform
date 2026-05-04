@@ -1,5 +1,6 @@
 import axios from 'axios';
 
+// Use environment variable for API URL
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const api = axios.create({
@@ -8,7 +9,6 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  withCredentials: true, // Add this for CORS
 });
 
 // Request interceptor
@@ -18,7 +18,7 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    console.log(`${config.method.toUpperCase()} ${config.baseURL}${config.url}`);
+    console.log(`📤 ${config.method.toUpperCase()} ${config.baseURL}${config.url}`);
     return config;
   },
   (error) => {
@@ -35,23 +35,16 @@ api.interceptors.response.use(
   },
   (error) => {
     if (error.response) {
-      console.error(`❌ ${error.response.status}: ${error.config?.url}`, error.response.data);
-      
+      console.error(`❌ ${error.response.status}: ${error.config?.url}`);
       if (error.response.status === 401) {
-        // Don't clear token for login/register attempts
-        const isAuthEndpoint = error.config?.url?.includes('/auth/login') || 
-                               error.config?.url?.includes('/auth/register');
-        
-        if (!isAuthEndpoint) {
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          if (!window.location.pathname.includes('/login')) {
-            window.location.href = '/login';
-          }
-        }
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
       }
     } else if (error.request) {
       console.error('No response from server. Is backend running?');
+    } else {
+      console.error('Error:', error.message);
     }
     return Promise.reject(error);
   }

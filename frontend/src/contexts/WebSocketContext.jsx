@@ -17,29 +17,33 @@ export const WebSocketProvider = ({ children }) => {
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
+    // Use environment variable for Socket URL
     const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
     
     console.log('Attempting WebSocket connection to:', SOCKET_URL);
     
     const newSocket = io(SOCKET_URL, {
       transports: ['websocket', 'polling'],
+      upgrade: true,
       reconnection: true,
-      reconnectionAttempts: 5,
+      reconnectionAttempts: 10,
       reconnectionDelay: 1000,
-      timeout: 10000,
-      withCredentials: true,
+      reconnectionDelayMax: 5000,
+      timeout: 20000,
+      forceNew: true,
+      withCredentials: true
     });
     
     setSocket(newSocket);
 
     newSocket.on('connect', () => {
-      console.log('✅ WebSocket connected successfully');
+      console.log('✅ WebSocket connected successfully to:', SOCKET_URL);
       setIsConnected(true);
     });
 
     newSocket.on('connect_error', (error) => {
       console.error('❌ WebSocket connection error:', error.message);
-      console.log('Make sure backend server is running on port 5000');
+      console.log('Make sure backend server is running at:', SOCKET_URL);
       setIsConnected(false);
     });
 
@@ -48,57 +52,46 @@ export const WebSocketProvider = ({ children }) => {
       setIsConnected(false);
     });
 
-    newSocket.on('connect_timeout', () => {
-      console.error('WebSocket connection timeout');
-    });
-
-    newSocket.io.on("reconnect_attempt", (attempt) => {
-      console.log(`Reconnection attempt ${attempt}`);
+    newSocket.on('cheating-alert', (alert) => {
+      console.log('Cheating alert received:', alert);
+      setCheatingAlerts(prev => [alert, ...prev.slice(0, 49)]);
     });
 
     return () => {
-      if (newSocket) {
+      if (newSocket.connected) {
         newSocket.disconnect();
       }
+      newSocket.close();
     };
   }, []);
 
   const joinExam = (examId, userId) => {
-    if (!examId || !userId) return false;
     if (socket && socket.connected) {
       socket.emit('join-exam', { examId, userId });
+      console.log('Joined exam room:', examId);
       return true;
     }
     console.warn('Socket not connected, cannot join exam');
     return false;
   };
 
-  const reportCheating = (examId, userId, violationType, details = {}) => {
-    if (!examId || !userId || !violationType) return false;
+  const reportCheating = (examId, userId, violationType, details) => {
     if (socket && socket.connected) {
       socket.emit('cheating-attempt', { examId, userId, violationType, details });
+      console.log('Cheating reported:', violationType);
       return true;
     }
-    return false;
-  };
-
-  const leaveExam = (examId) => {
-    if (!examId) return false;
-    if (socket && socket.connected) {
-      socket.emit('leave-exam', { examId });
-      return true;
-    }
+    console.warn('Socket not connected, cannot report cheating');
     return false;
   };
 
   return (
-    <WebSocketContext.Provider value={{
-      socket,
+    <WebSocketContext.Provider value={{ 
+      socket, 
       isConnected,
-      cheatingAlerts,
-      joinExam,
-      reportCheating,
-      leaveExam
+      cheatingAlerts, 
+      joinExam, 
+      reportCheating
     }}>
       {children}
     </WebSocketContext.Provider>
