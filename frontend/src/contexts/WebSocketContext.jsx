@@ -17,7 +17,7 @@ export const WebSocketProvider = ({ children }) => {
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || ' https://exam-platform-2.onrender.com';
+    const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
     
     console.log('Attempting WebSocket connection to:', SOCKET_URL);
     
