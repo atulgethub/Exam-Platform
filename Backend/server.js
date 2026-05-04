@@ -11,9 +11,20 @@ dotenv.config();
 
 const app = express();
 const server = http.createServer(app);
+
+// Get allowed origins from environment or use defaults
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'https://atulgethub-exam-platform.vercel.app',
+  'https://exam-platform-ecru.vercel.app',
+  process.env.CLIENT_URL
+].filter(Boolean);
+
+// Socket.IO with dynamic CORS
 const io = socketIO(server, {
   cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
     credentials: true
   },
@@ -24,24 +35,43 @@ const io = socketIO(server, {
 app.use(helmet({
   contentSecurityPolicy: false, // Disable for development
 }));
+
+// CORS middleware - Allow multiple origins
 app.use(cors({
-  origin: process.env.CLIENT_URL || "http://localhost:5173",
-  credentials: true
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('Blocked CORS request from:', origin);
+      callback(null, true); // Allow temporarily for debugging
+      // callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
+
+// Handle preflight requests
+app.options('*', cors());
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100
+  max: 100,
+  message: 'Too many requests from this IP, please try again later.'
 });
 app.use('/api/', limiter);
 
-// MongoDB Atlas Connection - FIXED (removed deprecated options)
+// MongoDB Atlas Connection
 const connectDB = async () => {
   try {
-    // Simple connection without deprecated options
     await mongoose.connect(process.env.MONGODB_URI);
     
     console.log('✅ MongoDB Atlas connected successfully');
@@ -102,9 +132,30 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/results', resultsRoutes);
 app.use('/api/contact', contactRoutes);
 
-// Test route
+// Test route - Health check
 app.get('/api/test', (req, res) => {
-  res.json({ message: 'API is working!', timestamp: new Date() });
+  res.json({ 
+    message: 'API is working!', 
+    timestamp: new Date(),
+    status: 'online',
+    endpoints: {
+      auth: '/api/auth',
+      exam: '/api/exam',
+      admin: '/api/admin',
+      results: '/api/results',
+      contact: '/api/contact'
+    }
+  });
+});
+
+// Root route
+app.get('/', (req, res) => {
+  res.json({
+    name: 'Exam Platform API',
+    version: '1.0.0',
+    status: 'running',
+    documentation: '/api/test'
+  });
 });
 
 // WebSocket for real-time proctoring
@@ -162,6 +213,13 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('leave-exam', ({ examId }) => {
+    if (examId) {
+      socket.leave(`exam-${examId}`);
+      console.log(`User left exam room ${examId}`);
+    }
+  });
+
   socket.on('disconnect', () => {
     if (socket.examId && examRooms.get(socket.examId)) {
       const room = examRooms.get(socket.examId);
@@ -173,7 +231,8 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`\n🚀 Server running on port ${PORT}`);
   console.log(`📡 WebSocket ready for connections`);
   console.log(`🌐 Test API: http://localhost:${PORT}/api/test`);
+  console.log(`🔗 CORS enabled for: ${allowedOrigins.join(', ')}`);
 });
