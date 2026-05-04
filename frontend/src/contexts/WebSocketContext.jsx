@@ -17,33 +17,30 @@ export const WebSocketProvider = ({ children }) => {
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    // Use environment variable for Socket URL
-    const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
+    const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'https://exam-platform-2.onrender.com';
     
-    console.log('Attempting WebSocket connection to:', SOCKET_URL);
+    console.log('🔌 Connecting to WebSocket:', SOCKET_URL);
     
     const newSocket = io(SOCKET_URL, {
-      transports: ['websocket', 'polling'],
+      transports: ['polling', 'websocket'],
       upgrade: true,
       reconnection: true,
-      reconnectionAttempts: 10,
+      reconnectionAttempts: 5,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       timeout: 20000,
-      forceNew: true,
       withCredentials: true
     });
     
     setSocket(newSocket);
 
     newSocket.on('connect', () => {
-      console.log('✅ WebSocket connected successfully to:', SOCKET_URL);
+      console.log('✅ WebSocket connected successfully');
       setIsConnected(true);
     });
 
     newSocket.on('connect_error', (error) => {
       console.error('❌ WebSocket connection error:', error.message);
-      console.log('Make sure backend server is running at:', SOCKET_URL);
       setIsConnected(false);
     });
 

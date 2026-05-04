@@ -1,7 +1,9 @@
 import axios from 'axios';
 
 // Use environment variable for API URL
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'https://exam-platform-2.onrender.com/api';
+
+console.log('🔧 API Base URL:', API_URL);
 
 const api = axios.create({
   baseURL: API_URL,
@@ -9,6 +11,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true
 });
 
 // Request interceptor
@@ -42,9 +45,10 @@ api.interceptors.response.use(
         window.location.href = '/login';
       }
     } else if (error.request) {
-      console.error('No response from server. Is backend running?');
+      console.error('❌ No response from server:', error.request);
+      console.error('Make sure backend is running at:', API_URL);
     } else {
-      console.error('Error:', error.message);
+      console.error('❌ Error:', error.message);
     }
     return Promise.reject(error);
   }
