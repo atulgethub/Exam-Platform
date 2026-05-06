@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
+import api from '../utils/axiosConfig';  // CHANGE: Import api instead of axios
 import toast from 'react-hot-toast';
 import { useWebSocket } from '../contexts/WebSocketContext';
 import { 
@@ -12,6 +13,7 @@ import {
 
 const AdminPanel = () => {
   const { cheatingAlerts } = useWebSocket();
+  const navigate = useNavigate();  // ADD: For navigation
   const [exams, setExams] = useState([]);
   const [selectedExam, setSelectedExam] = useState(null);
   const [cheatingLogs, setCheatingLogs] = useState([]);
@@ -32,7 +34,7 @@ const AdminPanel = () => {
     description: '',
     duration: 60,
     category: 'General',
-    isPublic: false, // Add this field
+    isPublic: false,
     mcqQuestions: [],
     codingQuestions: []
   });
@@ -53,24 +55,25 @@ const AdminPanel = () => {
     }
   }, [selectedExam]);
 
+  // ADD: Function to view exam results
+  const viewExamResults = (examId) => {
+    navigate(`/admin/exam-results/${examId}`);
+  };
+
+  // FIXED: Use api instead of axios with localhost
   const fetchExams = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/admin/exams', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get('/admin/exams');
       setExams(response.data);
     } catch (error) {
+      console.error('Failed to fetch exams:', error);
       toast.error('Failed to fetch exams');
     }
   };
 
   const fetchMessages = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/contact/messages', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get('/contact/messages');
       setMessages(response.data);
     } catch (error) {
       console.error('Failed to fetch messages');
@@ -79,10 +82,7 @@ const AdminPanel = () => {
 
   const fetchAllStudents = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/admin/students/list', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get('/admin/students/list');
       setAllStudents(response.data);
     } catch (error) {
       console.error('Failed to fetch students');
@@ -91,10 +91,7 @@ const AdminPanel = () => {
 
   const fetchAllottedStudents = async (examId) => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`http://localhost:5000/api/admin/exams/${examId}/allotted`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get(`/admin/exams/${examId}/allotted`);
       setAllottedStudents(response.data);
     } catch (error) {
       console.error('Failed to fetch allotted students');
@@ -104,10 +101,7 @@ const AdminPanel = () => {
 
   const fetchCheatingLogs = async (examId) => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`http://localhost:5000/api/admin/cheating-logs/${examId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get(`/admin/cheating-logs/${examId}`);
       setCheatingLogs(response.data);
     } catch (error) {
       toast.error('Failed to fetch cheating logs');
@@ -116,10 +110,7 @@ const AdminPanel = () => {
 
   const fetchResults = async (examId) => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`http://localhost:5000/api/admin/results/${examId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get(`/admin/results/${examId}`);
       setResults(response.data);
     } catch (error) {
       toast.error('Failed to fetch results');
@@ -128,10 +119,7 @@ const AdminPanel = () => {
 
   const handleCreateExam = async () => {
     try {
-      const token = localStorage.getItem('token');
-      await axios.post('http://localhost:5000/api/admin/exams', newExam, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.post('/admin/exams', newExam);
       toast.success('Exam created successfully');
       setShowCreateExam(false);
       fetchExams();
@@ -145,11 +133,11 @@ const AdminPanel = () => {
         codingQuestions: []
       });
     } catch (error) {
+      console.error('Create exam error:', error);
       toast.error('Failed to create exam');
     }
   };
 
-  // Allotment Functions
   const handleAllotExam = async () => {
     if (selectedStudents.length === 0) {
       toast.error('Please select at least one student');
@@ -158,11 +146,8 @@ const AdminPanel = () => {
 
     setAllotmentLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      await axios.post(`http://localhost:5000/api/admin/exams/${selectedExam._id}/allot`, {
+      await api.post(`/admin/exams/${selectedExam._id}/allot`, {
         studentIds: selectedStudents
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
       });
       
       toast.success(`Exam allotted to ${selectedStudents.length} student(s)`);
@@ -180,10 +165,7 @@ const AdminPanel = () => {
     if (!window.confirm('Remove allotment for this student? They will lose access to this exam.')) return;
     
     try {
-      const token = localStorage.getItem('token');
-      await axios.delete(`http://localhost:5000/api/admin/exams/${selectedExam._id}/allot/${studentId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.delete(`/admin/exams/${selectedExam._id}/allot/${studentId}`);
       toast.success('Allotment removed');
       fetchAllottedStudents(selectedExam._id);
     } catch (error) {
@@ -227,9 +209,7 @@ const AdminPanel = () => {
 
   const exportPDF = async (examId) => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`http://localhost:5000/api/results/export-pdf/${examId}`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const response = await api.get(`/results/export-pdf/${examId}`, {
         responseType: 'blob'
       });
       
@@ -248,9 +228,7 @@ const AdminPanel = () => {
 
   const exportExcel = async (examId) => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`http://localhost:5000/api/results/export-excel/${examId}`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const response = await api.get(`/results/export-excel/${examId}`, {
         responseType: 'blob'
       });
       
@@ -324,7 +302,7 @@ const AdminPanel = () => {
           </button>
         </div>
 
-        {/* Create Exam Form */}
+        {/* Create Exam Form (keep as is) */}
         {showCreateExam && (
           <div className="bg-white rounded-xl shadow-lg p-6 mb-8 animate-slide-up">
             <h2 className="text-2xl font-bold mb-4 gradient-text">Create New Exam</h2>
@@ -362,7 +340,6 @@ const AdminPanel = () => {
                 onChange={(e) => setNewExam({ ...newExam, duration: parseInt(e.target.value) })}
               />
               
-              {/* Public/Private Toggle */}
               <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -483,9 +460,6 @@ const AdminPanel = () => {
                     </div>
                   </button>
                 ))}
-                {exams.length === 0 && (
-                  <p className="text-gray-500 text-center py-4">No exams created yet</p>
-                )}
               </div>
             </div>
 
@@ -500,9 +474,6 @@ const AdminPanel = () => {
                     <p className="text-xs text-gray-400">{new Date(msg.createdAt).toLocaleDateString()}</p>
                   </div>
                 ))}
-                {messages.length === 0 && (
-                  <p className="text-gray-500 text-center py-4">No messages yet</p>
-                )}
               </div>
             </div>
           </div>
@@ -518,12 +489,8 @@ const AdminPanel = () => {
                       <h2 className="text-2xl font-bold text-gray-800">{selectedExam.title}</h2>
                       <p className="text-gray-500 mt-1">{selectedExam.description}</p>
                       <div className="flex gap-4 mt-3">
-                        <span className="text-sm bg-gray-100 px-2 py-1 rounded">
-                          Duration: {selectedExam.duration} min
-                        </span>
-                        <span className="text-sm bg-gray-100 px-2 py-1 rounded">
-                          Total Marks: {selectedExam.totalMarks}
-                        </span>
+                        <span className="text-sm bg-gray-100 px-2 py-1 rounded">Duration: {selectedExam.duration} min</span>
+                        <span className="text-sm bg-gray-100 px-2 py-1 rounded">Total Marks: {selectedExam.totalMarks}</span>
                         <span className={`text-sm px-2 py-1 rounded ${selectedExam.isPublic ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
                           {selectedExam.isPublic ? '🌍 Public Exam' : '🔒 Private Exam'}
                         </span>
@@ -546,7 +513,7 @@ const AdminPanel = () => {
                     Allotted Students ({allottedStudents.length})
                   </h3>
                   {allottedStudents.length === 0 ? (
-                    <p className="text-gray-500 text-center py-4">No students allotted yet. Click "Allot to Students" to add.</p>
+                    <p className="text-gray-500 text-center py-4">No students allotted yet.</p>
                   ) : (
                     <div className="grid gap-2 max-h-64 overflow-y-auto">
                       {allottedStudents.map((student) => (
@@ -554,15 +521,8 @@ const AdminPanel = () => {
                           <div>
                             <p className="font-medium text-gray-900">{student.name}</p>
                             <p className="text-sm text-gray-500">{student.email}</p>
-                            {student.enrollmentNo && (
-                              <p className="text-xs text-gray-400">Enrollment: {student.enrollmentNo}</p>
-                            )}
                           </div>
-                          <button
-                            onClick={() => handleRemoveAllotment(student._id)}
-                            className="text-red-600 hover:text-red-800 transition p-1"
-                            title="Remove allotment"
-                          >
+                          <button onClick={() => handleRemoveAllotment(student._id)} className="text-red-600">
                             <FiX size={18} />
                           </button>
                         </div>
@@ -579,15 +539,12 @@ const AdminPanel = () => {
                   </h2>
                   <div className="space-y-2 max-h-64 overflow-y-auto">
                     {cheatingAlerts.map((alert, idx) => (
-                      <div key={idx} className="bg-red-50 border-l-4 border-red-600 p-3 rounded animate-pulse">
+                      <div key={idx} className="bg-red-50 border-l-4 border-red-600 p-3 rounded">
                         <p className="font-semibold">Student ID: {alert.userId.substring(0, 8)}...</p>
                         <p className="text-sm">Violation: {alert.violationType}</p>
                         <p className="text-xs text-gray-600">{new Date(alert.timestamp).toLocaleTimeString()}</p>
                       </div>
                     ))}
-                    {cheatingAlerts.length === 0 && (
-                      <p className="text-gray-500 text-center py-4">No cheating alerts detected</p>
-                    )}
                   </div>
                 </div>
 
@@ -613,101 +570,43 @@ const AdminPanel = () => {
                   </div>
                 </div>
 
-                {/* Charts */}
-                {results.length > 0 && (
-                  <>
-                    <div className="bg-white rounded-xl shadow-lg p-6">
-                      <h3 className="text-lg font-semibold mb-4">Performance Distribution</h3>
-                      <ResponsiveContainer width="100%" height={300}>
-                        <PieChart>
-                          <Pie
-                            data={pieData}
-                            cx="50%"
-                            cy="50%"
-                            labelLine={false}
-                            label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                            outerRadius={80}
-                            fill="#8884d8"
-                            dataKey="value"
-                          >
-                            {pieData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip />
-                          <Legend />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-
-                    <div className="bg-white rounded-xl shadow-lg p-6">
-                      <h3 className="text-lg font-semibold mb-4">Student Scores</h3>
-                      <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={chartData}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="name" />
-                          <YAxis />
-                          <Tooltip />
-                          <Legend />
-                          <Bar dataKey="percentage" fill="#4F46E5" name="Percentage (%)" />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </>
-                )}
-
-                {/* Results Table */}
+                {/* Results Table with View Results Button */}
                 <div className="bg-white rounded-xl shadow-lg p-6">
                   <div className="flex justify-between items-center mb-4">
                     <h2 className="text-xl font-bold">📊 Results</h2>
                     <div className="space-x-2">
-                      <button
-                        onClick={() => exportPDF(selectedExam._id)}
-                        className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition flex items-center gap-2"
-                      >
-                        <FiDownload /> PDF
-                      </button>
-                      <button
-                        onClick={() => exportExcel(selectedExam._id)}
-                        className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition flex items-center gap-2"
-                      >
-                        <FiDownload /> Excel
-                      </button>
+                      <button onClick={() => exportPDF(selectedExam._id)} className="bg-red-600 text-white px-4 py-2 rounded-lg">PDF</button>
+                      <button onClick={() => exportExcel(selectedExam._id)} className="bg-green-600 text-white px-4 py-2 rounded-lg">Excel</button>
                     </div>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-200">
                       <thead className="bg-gray-50">
                         <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Student</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Score</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Percentage</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Submitted</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Auto</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium">Student</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium">Score</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium">Percentage</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium">Submitted</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium">Action</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
-                        {results.map((result, idx) => (
-                          <tr key={idx} className="hover:bg-gray-50">
-                            <td className="px-6 py-4 text-sm">{result.student?.name || 'N/A'}</td>
-                            <td className="px-6 py-4 text-sm font-semibold">{result.totalScore}/{selectedExam.totalMarks}</td>
-                            <td className="px-6 py-4">
-                              <div className="flex items-center">
-                                <div className="flex-1 h-2 bg-gray-200 rounded-full mr-2 w-20">
-                                  <div 
-                                    className="h-2 bg-indigo-600 rounded-full" 
-                                    style={{ width: `${(result.totalScore / selectedExam.totalMarks) * 100}%` }}
-                                  ></div>
-                                </div>
-                                <span className="text-sm">{((result.totalScore / selectedExam.totalMarks) * 100).toFixed(1)}%</span>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 text-sm">{new Date(result.submittedAt).toLocaleDateString()}</td>
-                            <td className="px-6 py-4 text-sm">
-                              {result.autoSubmitted ? '⚠️ Yes' : '✅ No'}
-                            </td>
-                          </tr>
-                        ))}
+                        {results.map((result, idx) => {
+                          const percentage = (result.totalScore / selectedExam.totalMarks) * 100;
+                          return (
+                            <tr key={idx} className="hover:bg-gray-50">
+                              <td className="px-6 py-4 text-sm">{result.student?.name || 'N/A'}</td>
+                              <td className="px-6 py-4 text-sm font-semibold">{result.totalScore}/{selectedExam.totalMarks}</td>
+                              <td className="px-6 py-4 text-sm">{percentage.toFixed(1)}%</td>
+                              <td className="px-6 py-4 text-sm">{new Date(result.submittedAt).toLocaleDateString()}</td>
+                              <td className="px-6 py-4 text-sm">
+                                <button onClick={() => viewExamResults(selectedExam._id)} className="text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
+                                  <FiEye /> View Results
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -717,7 +616,7 @@ const AdminPanel = () => {
               <div className="bg-white rounded-xl shadow-lg p-12 text-center">
                 <FiFileText className="h-16 w-16 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-xl font-semibold text-gray-700">Select an Exam</h3>
-                <p className="text-gray-500 mt-2">Choose an exam from the left to view details and allot students</p>
+                <p className="text-gray-500 mt-2">Choose an exam from the left to view details</p>
               </div>
             )}
           </div>
@@ -727,71 +626,29 @@ const AdminPanel = () => {
       {/* Allotment Modal */}
       {showAllotmentModal && selectedExam && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full max-h-[80vh] overflow-hidden">
-            <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white">
-                Allot "{selectedExam.title}" to Students
-              </h3>
-              <button onClick={() => setShowAllotmentModal(false)} className="text-gray-500 hover:text-gray-700">
-                <FiX size={24} />
-              </button>
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[80vh] overflow-hidden">
+            <div className="p-4 border-b flex justify-between items-center">
+              <h3 className="text-xl font-bold">Allot "{selectedExam.title}" to Students</h3>
+              <button onClick={() => setShowAllotmentModal(false)} className="text-gray-500"><FiX size={24} /></button>
             </div>
-            
             <div className="p-4">
-              {/* Search Bar */}
               <div className="relative mb-4">
                 <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search students by name, email or enrollment..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                />
+                <input type="text" placeholder="Search students..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2 border rounded-lg" />
               </div>
-              
-              {/* Students List */}
               <div className="space-y-2 overflow-y-auto max-h-[50vh]">
-                {filteredStudents.length === 0 ? (
-                  <p className="text-gray-500 text-center py-4">
-                    {searchTerm ? 'No students match your search' : 'All students already have this exam allotted'}
-                  </p>
-                ) : (
-                  filteredStudents.map((student) => (
-                    <label key={student._id} className="flex items-center space-x-3 p-3 hover:bg-gray-50 rounded-lg cursor-pointer transition">
-                      <input
-                        type="checkbox"
-                        checked={selectedStudents.includes(student._id)}
-                        onChange={() => toggleStudentSelection(student._id)}
-                        className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
-                      />
-                      <div className="flex-1">
-                        <p className="font-medium text-gray-900">{student.name}</p>
-                        <p className="text-sm text-gray-500">{student.email}</p>
-                        {student.enrollmentNo && (
-                          <p className="text-xs text-gray-400">ID: {student.enrollmentNo}</p>
-                        )}
-                      </div>
-                    </label>
-                  ))
-                )}
+                {filteredStudents.map((student) => (
+                  <label key={student._id} className="flex items-center space-x-3 p-3 hover:bg-gray-50 rounded-lg cursor-pointer">
+                    <input type="checkbox" checked={selectedStudents.includes(student._id)} onChange={() => toggleStudentSelection(student._id)} className="w-4 h-4 text-indigo-600 rounded" />
+                    <div><p className="font-medium">{student.name}</p><p className="text-sm text-gray-500">{student.email}</p></div>
+                  </label>
+                ))}
               </div>
             </div>
-            
-            <div className="p-4 border-t border-gray-200 flex justify-end gap-3">
-              <button
-                onClick={() => setShowAllotmentModal(false)}
-                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAllotExam}
-                disabled={allotmentLoading || selectedStudents.length === 0}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50 transition"
-              >
-                <FiUserCheck />
-                {allotmentLoading ? 'Allotting...' : `Allot to ${selectedStudents.length} Student(s)`}
+            <div className="p-4 border-t flex justify-end gap-3">
+              <button onClick={() => setShowAllotmentModal(false)} className="px-4 py-2 text-gray-600">Cancel</button>
+              <button onClick={handleAllotExam} disabled={allotmentLoading || selectedStudents.length === 0} className="bg-indigo-600 text-white px-4 py-2 rounded-lg disabled:opacity-50">
+                <FiUserCheck /> {allotmentLoading ? 'Allotting...' : `Allot to ${selectedStudents.length}`}
               </button>
             </div>
           </div>

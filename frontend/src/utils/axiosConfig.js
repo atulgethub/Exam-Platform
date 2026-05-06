@@ -1,6 +1,5 @@
 import axios from 'axios';
 
-// Use environment variable for API URL
 const API_URL = import.meta.env.VITE_API_URL || 'https://exam-platform-2.onrender.com/api';
 
 console.log('🔧 API Base URL:', API_URL);
