@@ -3,7 +3,8 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { 
   FiBookOpen, FiUser, FiLogOut, FiMenu, FiX, 
   FiHome, FiGrid, FiShield, FiAward, FiBell,
-  FiSun, FiMoon, FiBarChart2, FiFileText
+  FiSun, FiMoon, FiBarChart2, FiFileText,
+  FiUserCheck, FiClipboard, FiSettings
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
@@ -13,13 +14,19 @@ const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [notificationCount, setNotificationCount] = useState(0);
   const navigate = useNavigate();
   const location = useLocation();
 
   useEffect(() => {
     const userData = localStorage.getItem('user');
     if (userData) {
-      setUser(JSON.parse(userData));
+      try {
+        const parsedUser = JSON.parse(userData);
+        setUser(parsedUser);
+      } catch (e) {
+        console.error('Error parsing user data:', e);
+      }
     }
     
     // Check for saved theme preference
@@ -28,6 +35,9 @@ const Navbar = () => {
       setDarkMode(true);
       document.documentElement.classList.add('dark');
     }
+    
+    // Fetch notification count (if you have an API endpoint)
+    // fetchNotificationCount();
   }, [location]);
 
   // Handle scroll effect
@@ -65,15 +75,21 @@ const Navbar = () => {
       document.documentElement.classList.remove('dark');
       localStorage.setItem('theme', 'light');
       setDarkMode(false);
+      toast.success('Light mode activated');
     } else {
       document.documentElement.classList.add('dark');
       localStorage.setItem('theme', 'dark');
       setDarkMode(true);
+      toast.success('Dark mode activated');
     }
   };
 
   const isActive = (path) => {
     return location.pathname === path;
+  };
+
+  const isActivePrefix = (prefix) => {
+    return location.pathname.startsWith(prefix);
   };
 
   // Navigation items based on user role
@@ -87,9 +103,10 @@ const Navbar = () => {
     if (user.role === 'admin') {
       return [
         { path: '/', label: 'Home', icon: <FiHome className="mr-2" /> },
-        { path: '/admin', label: 'Admin Dashboard', icon: <FiShield className="mr-2" /> },
+        { path: '/admin', label: 'Dashboard', icon: <FiShield className="mr-2" /> },
         { path: '/admin/exams', label: 'Manage Exams', icon: <FiFileText className="mr-2" /> },
-        { path: '/admin/results', label: 'All Results', icon: <FiBarChart2 className="mr-2" /> }
+        { path: '/admin/results', label: 'Results', icon: <FiBarChart2 className="mr-2" /> },
+        { path: '/admin/students', label: 'Students', icon: <FiUsers className="mr-2" /> }
       ];
     }
     
@@ -126,6 +143,13 @@ const Navbar = () => {
                 ExamPlatform
               </span>
             </Link>
+            
+            {/* Environment Badge (for development) */}
+            {import.meta.env.DEV && (
+              <span className="ml-3 text-xs px-2 py-0.5 bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 rounded-full">
+                Dev
+              </span>
+            )}
           </div>
 
           {/* Desktop Menu */}
@@ -135,7 +159,7 @@ const Navbar = () => {
                 key={link.path}
                 to={link.path}
                 className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center ${
-                  isActive(link.path)
+                  isActive(link.path) || (link.path !== '/' && isActivePrefix(link.path))
                     ? 'bg-indigo-50 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400'
                     : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-indigo-600 dark:hover:text-indigo-400'
                 }`}
@@ -159,7 +183,11 @@ const Navbar = () => {
                 {/* Notification Bell */}
                 <button className="relative p-2 rounded-full text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
                   <FiBell size={20} />
-                  <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                  {notificationCount > 0 && (
+                    <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                      {notificationCount > 9 ? '9+' : notificationCount}
+                    </span>
+                  )}
                 </button>
                 
                 {/* User Profile Dropdown */}
@@ -203,13 +231,33 @@ const Navbar = () => {
                             <span>Dashboard</span>
                           </Link>
                           {user.role !== 'admin' && (
+                            <>
+                              <Link
+                                to="/my-results"
+                                className="flex items-center space-x-2 px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                                onClick={() => setDropdownOpen(false)}
+                              >
+                                <FiAward size={16} />
+                                <span>My Results</span>
+                              </Link>
+                              <Link
+                                to="/dashboard"
+                                className="flex items-center space-x-2 px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                                onClick={() => setDropdownOpen(false)}
+                              >
+                                <FiClipboard size={16} />
+                                <span>Available Exams</span>
+                              </Link>
+                            </>
+                          )}
+                          {user.role === 'admin' && (
                             <Link
-                              to="/my-results"
+                              to="/admin/students"
                               className="flex items-center space-x-2 px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                               onClick={() => setDropdownOpen(false)}
                             >
-                              <FiAward size={16} />
-                              <span>My Results</span>
+                              <FiUserCheck size={16} />
+                              <span>Manage Students</span>
                             </Link>
                           )}
                           <button
@@ -217,7 +265,7 @@ const Navbar = () => {
                               handleLogout();
                               setDropdownOpen(false);
                             }}
-                            className="w-full flex items-center space-x-2 px-3 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                            className="w-full flex items-center space-x-2 px-3 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors mt-2 border-t border-gray-100 dark:border-gray-700 pt-2"
                           >
                             <FiLogOut size={16} />
                             <span>Logout</span>
@@ -251,12 +299,14 @@ const Navbar = () => {
             <button
               onClick={toggleTheme}
               className="p-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              aria-label="Toggle theme"
             >
               {darkMode ? <FiSun size={20} /> : <FiMoon size={20} />}
             </button>
             <button
               onClick={() => setIsOpen(!isOpen)}
               className="text-gray-700 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 focus:outline-none p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              aria-label="Menu"
             >
               {isOpen ? <FiX size={24} /> : <FiMenu size={24} />}
             </button>
@@ -273,7 +323,7 @@ const Navbar = () => {
                   to={link.path}
                   onClick={() => setIsOpen(false)}
                   className={`flex items-center px-3 py-2 rounded-lg font-medium transition-colors ${
-                    isActive(link.path)
+                    isActive(link.path) || (link.path !== '/' && isActivePrefix(link.path))
                       ? 'bg-indigo-50 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400'
                       : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
                   }`}
@@ -297,14 +347,24 @@ const Navbar = () => {
                     </div>
                     
                     {user.role !== 'admin' && (
-                      <Link
-                        to="/my-results"
-                        className="flex items-center space-x-2 px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors mb-1"
-                        onClick={() => setIsOpen(false)}
-                      >
-                        <FiAward size={16} />
-                        <span>My Results</span>
-                      </Link>
+                      <>
+                        <Link
+                          to="/my-results"
+                          className="flex items-center space-x-2 px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors mb-1"
+                          onClick={() => setIsOpen(false)}
+                        >
+                          <FiAward size={16} />
+                          <span>My Results</span>
+                        </Link>
+                        <Link
+                          to="/dashboard"
+                          className="flex items-center space-x-2 px-3 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors mb-1"
+                          onClick={() => setIsOpen(false)}
+                        >
+                          <FiClipboard size={16} />
+                          <span>Available Exams</span>
+                        </Link>
+                      </>
                     )}
                     
                     <button
@@ -344,5 +404,8 @@ const Navbar = () => {
     </nav>
   );
 };
+
+// Add missing import for FiUsers
+import { FiUsers } from 'react-icons/fi';
 
 export default Navbar;

@@ -11,6 +11,7 @@ import TakeExam from './pages/TakeExam';
 import AdminPanel from './pages/AdminPanel';
 import MyResults from './pages/MyResults';
 import ExamResults from './pages/ExamResults';
+import AdminExamResults from './pages/AdminExamResults';
 
 const isAuthenticated = () => {
   const token = localStorage.getItem('token');
@@ -18,16 +19,21 @@ const isAuthenticated = () => {
 };
 
 const isAdmin = () => {
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
-  return user.role === 'admin';
+  try {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    return user.role === 'admin';
+  } catch (error) {
+    console.error('Error parsing user data:', error);
+    return false;
+  }
 };
 
 const PrivateRoute = ({ children, adminOnly = false }) => {
   if (!isAuthenticated()) {
-    return <Navigate to="/login" />;
+    return <Navigate to="/login" replace />;
   }
   if (adminOnly && !isAdmin()) {
-    return <Navigate to="/dashboard" />;
+    return <Navigate to="/dashboard" replace />;
   }
   return children;
 };
@@ -36,7 +42,7 @@ function App() {
   return (
     <Router>
       <WebSocketProvider>
-        <div className="min-h-screen flex flex-col">
+        <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
           <Navbar />
           <main className="flex-grow">
             <Routes>
@@ -73,9 +79,28 @@ function App() {
                   <AdminPanel />
                 </PrivateRoute>
               } />
+              <Route path="/admin/exam-results/:examId" element={
+                <PrivateRoute adminOnly={true}>
+                  <AdminExamResults />
+                </PrivateRoute>
+              } />
               
-              {/* Catch all */}
-              <Route path="*" element={<Navigate to="/" />} />
+              {/* Catch all - 404 page */}
+              <Route path="/404" element={
+                <div className="flex items-center justify-center min-h-screen">
+                  <div className="text-center">
+                    <h1 className="text-6xl font-bold text-gray-800 dark:text-white">404</h1>
+                    <p className="text-xl text-gray-600 dark:text-gray-400 mt-2">Page Not Found</p>
+                    <button 
+                      onClick={() => window.location.href = '/'}
+                      className="mt-4 btn-primary"
+                    >
+                      Go Home
+                    </button>
+                  </div>
+                </div>
+              } />
+              <Route path="*" element={<Navigate to="/404" replace />} />
             </Routes>
           </main>
         </div>

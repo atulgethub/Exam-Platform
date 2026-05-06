@@ -1,59 +1,69 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import api from '../utils/axiosConfig';
 import toast from 'react-hot-toast';
-import { FiAward, FiBarChart2, FiDownload, FiEye } from 'react-icons/fi';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { 
+  FiAward, FiCheckCircle, FiXCircle, FiDownload, 
+  FiArrowLeft, FiClock, FiFileText, FiCode, FiBook 
+} from 'react-icons/fi';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
-const MyResults = () => {
-  const [results, setResults] = useState([]);
-  const [loading, setLoading] = useState(true);
+const ExamResults = () => {
+  const { examId } = useParams();
   const navigate = useNavigate();
+  const [exam, setExam] = useState(null);
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchResults();
-  }, []);
+    if (examId) {
+      fetchExamResults();
+    } else {
+      toast.error('No exam ID provided');
+      navigate('/my-results');
+    }
+  }, [examId]);
 
-  const fetchResults = async () => {
+  const fetchExamResults = async () => {
     try {
-      const response = await api.get('/results/my-results');
-      setResults(response.data || []);
+      console.log('Fetching results for exam:', examId);
+      const response = await api.get(`/results/exam/${examId}`);
+      console.log('Response data:', response.data);
+      
+      setExam(response.data.exam);
+      setResult(response.data.result);
     } catch (error) {
       console.error('Error fetching results:', error);
-      toast.error('Failed to fetch results');
+      if (error.response?.status === 404) {
+        toast.error('Exam results not found');
+      } else {
+        toast.error('Failed to load exam results');
+      }
+      navigate('/my-results');
     } finally {
       setLoading(false);
     }
   };
 
-  const viewExamDetails = (examId) => {
-    navigate(`/exam-results/${examId}`);
-  };
-
-  const exportResults = async () => {
+  const exportResultPDF = async () => {
     try {
-      const response = await api.get('/results/export-pdf', {
+      const response = await api.get(`/results/export-pdf/${examId}`, {
         responseType: 'blob'
       });
       
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', 'my-exam-results.pdf');
+      link.setAttribute('download', `exam-result-${examId}.pdf`);
       document.body.appendChild(link);
       link.click();
       link.remove();
-      toast.success('Results exported successfully');
+      toast.success('Result exported successfully');
     } catch (error) {
-      toast.error('Failed to export results');
+      console.error('Export error:', error);
+      toast.error('Failed to export result');
     }
   };
-
-  const chartData = results.map(r => ({
-    name: r.examTitle?.substring(0, 15),
-    score: r.percentage,
-    date: new Date(r.submittedAt).toLocaleDateString()
-  }));
 
   if (loading) {
     return (
@@ -63,133 +73,214 @@ const MyResults = () => {
     );
   }
 
+  if (!exam || !result) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <FiXCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Result Not Found</h2>
+          <p className="text-gray-600 dark:text-gray-400 mt-2">Unable to find your exam results</p>
+          <button
+            onClick={() => navigate('/my-results')}
+            className="mt-4 btn-primary"
+          >
+            Back to Results
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const percentage = (result.totalScore / exam.totalMarks) * 100;
+  const isPassed = percentage >= 60;
+
+  // Prepare chart data
+  const mcqPerformance = result.answers.mcq.map((ans, idx) => ({
+    question: `Q${idx + 1}`,
+    marks: ans.marksObtained,
+    total: exam.mcqQuestions[idx]?.marks || 0
+  }));
+
+  const pieData = [
+    { name: 'Correct Answers', value: result.answers.mcq.filter(a => a.isCorrect).length },
+    { name: 'Incorrect Answers', value: result.answers.mcq.filter(a => !a.isCorrect).length }
+  ];
+
+  const COLORS = ['#10B981', '#EF4444'];
+
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">My Exam Results</h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-1">Track your performance across all exams</p>
+        {/* Header */}
+        <div className="mb-8">
+          <button
+            onClick={() => navigate('/my-results')}
+            className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 mb-4 transition"
+          >
+            <FiArrowLeft />
+            Back to Results
+          </button>
+          
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div>
+                <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">{exam.title}</h1>
+                <p className="text-gray-600 dark:text-gray-400 mt-1">{exam.description}</p>
+              </div>
+              <button
+                onClick={exportResultPDF}
+                className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition"
+              >
+                <FiDownload />
+                Download PDF
+              </button>
+            </div>
           </div>
-          {results.length > 0 && (
-            <button
-              onClick={exportResults}
-              className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition"
-            >
-              <FiDownload />
-              Export Results
-            </button>
-          )}
         </div>
 
-        {results.length === 0 ? (
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-12 text-center">
-            <FiAward className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-gray-700 dark:text-gray-300">No Results Yet</h3>
-            <p className="text-gray-500 dark:text-gray-400 mt-2">You haven't taken any exams yet.</p>
-            <button
-              onClick={() => navigate('/dashboard')}
-              className="mt-4 btn-primary"
-            >
-              Browse Available Exams
-            </button>
+        {/* Score Overview */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 text-center">
+            <div className="inline-flex items-center justify-center w-12 h-12 bg-indigo-100 dark:bg-indigo-900/50 rounded-full mb-3">
+              <FiAward className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
+            </div>
+            <p className="text-gray-500 dark:text-gray-400 text-sm">Total Score</p>
+            <p className="text-2xl font-bold text-gray-900 dark:text-white">{result.totalScore}/{exam.totalMarks}</p>
           </div>
-        ) : (
-          <>
-            {/* Performance Chart */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-8">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Performance Trend</h2>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
+          
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 text-center">
+            <div className="inline-flex items-center justify-center w-12 h-12 bg-green-100 dark:bg-green-900/50 rounded-full mb-3">
+              <FiCheckCircle className="h-6 w-6 text-green-600" />
+            </div>
+            <p className="text-gray-500 dark:text-gray-400 text-sm">Percentage</p>
+            <p className={`text-2xl font-bold ${isPassed ? 'text-green-600' : 'text-red-600'}`}>
+              {percentage.toFixed(1)}%
+            </p>
+          </div>
+          
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 text-center">
+            <div className="inline-flex items-center justify-center w-12 h-12 bg-blue-100 dark:bg-blue-900/50 rounded-full mb-3">
+              <FiClock className="h-6 w-6 text-blue-600" />
+            </div>
+            <p className="text-gray-500 dark:text-gray-400 text-sm">Submitted</p>
+            <p className="text-lg font-semibold text-gray-900 dark:text-white">
+              {new Date(result.submittedAt).toLocaleDateString()}
+            </p>
+          </div>
+          
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 text-center">
+            <div className="inline-flex items-center justify-center w-12 h-12 bg-purple-100 dark:bg-purple-900/50 rounded-full mb-3">
+              <FiFileText className="h-6 w-6 text-purple-600" />
+            </div>
+            <p className="text-gray-500 dark:text-gray-400 text-sm">Status</p>
+            <p className={`text-2xl font-bold ${isPassed ? 'text-green-600' : 'text-red-600'}`}>
+              {isPassed ? 'PASSED' : 'FAILED'}
+            </p>
+          </div>
+        </div>
+
+        {/* MCQ Performance Chart */}
+        {mcqPerformance.length > 0 && (
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-8">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">MCQ Performance</h2>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={mcqPerformance}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="question" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Line type="monotone" dataKey="marks" stroke="#10B981" name="Marks Obtained" />
+                <Line type="monotone" dataKey="total" stroke="#EF4444" name="Total Marks" strokeDasharray="5 5" />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        {/* MCQ Results Details */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 mb-8">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+            <FiBook className="text-indigo-600" />
+            MCQ Questions Analysis
+          </h2>
+          <div className="space-y-4">
+            {exam.mcqQuestions.map((question, idx) => {
+              const answer = result.answers.mcq[idx];
+              const isCorrect = answer?.isCorrect || false;
+              return (
+                <div key={idx} className="border-b border-gray-200 dark:border-gray-700 pb-3">
+                  <div className="flex justify-between items-start mb-2">
+                    <p className="font-medium text-gray-800 dark:text-gray-200">Q{idx + 1}: {question.question}</p>
+                    <span className={`px-2 py-1 rounded text-xs font-semibold ${isCorrect ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'}`}>
+                      {isCorrect ? `+${question.marks}` : `0/${question.marks}`}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Your answer: {answer?.selectedOption !== null ? question.options[answer.selectedOption] : 'Not answered'}
+                  </p>
+                  {!isCorrect && (
+                    <p className="text-sm text-green-600 dark:text-green-400 mt-1">
+                      Correct answer: {question.options[question.correctAnswer]}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Score Distribution Chart */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Score Distribution</h2>
+          <div className="flex flex-col md:flex-row justify-center items-center gap-8">
+            <div className="w-64 h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={pieData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    {pieData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
                   <Tooltip />
-                  <Legend />
-                  <Line type="monotone" dataKey="score" stroke="#4F46E5" strokeWidth={2} />
-                </LineChart>
+                </PieChart>
               </ResponsiveContainer>
             </div>
-
-            {/* Results Table */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                  <thead className="bg-gray-50 dark:bg-gray-700">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Exam</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Score</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Percentage</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Submitted</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                    {results.map((result, idx) => (
-                      <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{result.examTitle}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">{result.score}/{result.totalMarks}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full mr-2 w-24">
-                              <div 
-                                className={`h-2 rounded-full ${result.percentage >= 60 ? 'bg-green-600' : 'bg-red-600'}`}
-                                style={{ width: `${result.percentage}%` }}
-                              ></div>
-                            </div>
-                            <span className={`text-sm font-semibold ${result.percentage >= 60 ? 'text-green-600' : 'text-red-600'}`}>
-                              {result.percentage.toFixed(1)}%
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                          {new Date(result.submittedAt).toLocaleDateString()}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 py-1 text-xs rounded-full ${result.percentage >= 60 ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'}`}>
-                            {result.percentage >= 60 ? 'Passed' : 'Failed'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <button
-                            onClick={() => viewExamDetails(result.examId)}
-                            className="text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 flex items-center gap-1"
-                          >
-                            <FiEye /> Details
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            <div className="flex-1">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">MCQ Score:</span>
+                  <span className="font-semibold text-gray-900 dark:text-white">
+                    {result.answers.mcq.reduce((sum, a) => sum + (a.marksObtained || 0), 0)}/{exam.mcqQuestions.reduce((sum, q) => sum + q.marks, 0)}
+                  </span>
+                </div>
+                {exam.codingQuestions && exam.codingQuestions.length > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">Coding Score:</span>
+                    <span className="font-semibold text-gray-900 dark:text-white">
+                      {result.answers.coding.reduce((sum, a) => sum + (a.marksObtained || 0), 0)}/{exam.codingQuestions.reduce((sum, q) => sum + q.marks, 0)}
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between pt-3 border-t border-gray-200 dark:border-gray-700">
+                  <span className="font-bold text-gray-800 dark:text-gray-200">Total Score:</span>
+                  <span className="font-bold text-xl text-indigo-600">{result.totalScore}/{exam.totalMarks}</span>
+                </div>
               </div>
             </div>
-
-            {/* Summary Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
-              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
-                <p className="text-gray-500 dark:text-gray-400 text-sm">Average Score</p>
-                <p className="text-3xl font-bold text-gray-900 dark:text-white">
-                  {(results.reduce((sum, r) => sum + r.percentage, 0) / results.length).toFixed(1)}%
-                </p>
-              </div>
-              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
-                <p className="text-gray-500 dark:text-gray-400 text-sm">Highest Score</p>
-                <p className="text-3xl font-bold text-green-600">
-                  {Math.max(...results.map(r => r.percentage)).toFixed(1)}%
-                </p>
-              </div>
-              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
-                <p className="text-gray-500 dark:text-gray-400 text-sm">Exams Taken</p>
-                <p className="text-3xl font-bold text-indigo-600">{results.length}</p>
-              </div>
-            </div>
-          </>
-        )}
+          </div>
+        </div>
       </div>
     </div>
   );
 };
 
-export default MyResults;
+export default ExamResults;
